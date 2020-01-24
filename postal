@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# store arguments
+ARGS=$@
+ARG1=$1
+ARG2=$2
+
+# get project name
+PROJECT=$(basename $(pwd))
+
+# get compose file mode and shift arguments if needed
+MODE=development
+if [ "$1" = "-m" ]; then
+  MODE=$2
+  ARGS=${@:3}
+  ARG1=$3
+  ARG2=$4
+fi
+
+# function to enter container (try bash first, if not use sh)
+function enter(){
+  if docker-compose -p $PROJECT -f stack/$MODE.yml exec $ARG1 bash -c ls &> /dev/null; then
+    docker-compose -p $PROJECT -f stack/$MODE.yml exec $ARG1 bash
+  else
+    docker-compose -p $PROJECT -f stack/$MODE.yml exec $ARG1 sh
+  fi
+}
+
+# proxy requets to docker-compose and add a few extra commands
+if [ "$ARG1" = "launch" ]; then
+  # bring docker stack up cleanly
+  docker-compose -p $PROJECT -f stack/$MODE.yml down --remove-orphans
+  docker-compose -p $PROJECT -f stack/$MODE.yml build
+  docker-compose -p $PROJECT -f stack/$MODE.yml up -d --force-recreate
+elif [ "$ARG1" = "enter" ]; then
+  # enter a service container (attempt to enter using enter.sh script else enter using root)
+  if docker-compose -p $PROJECT -f stack/$MODE.yml exec $ARG2 ls /enter.sh &> /dev/null; then
+    docker-compose -p $PROJECT -f stack/$MODE.yml exec $ARG2 bash /enter.sh $USER $UID
+  else
+    docker-compose -p $PROJECT -f stack/$MODE.yml exec $ARG2 bash
+  fi
+elif [ "$ARG1" = "root" ]; then
+  # enter a service container as root
+  enter $ARG2
+elif [ -z "$ARG1" ] || [ "$ARG1" = "help" ]; then
+  # help instructions
+  echo "Usage: postal [-m mode] launch | up | down | enter [service] | root [service] | logs -f | help"
+  echo "All unmatched commands are proxied to docker compose with '-f stack/$MODE.yml' set."
+else
+  # proxy all other commands to compose (down, logs, etc.)
+  docker-compose -p $PROJECT -f stack/$MODE.yml $ARGS
+fi

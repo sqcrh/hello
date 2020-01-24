@@ -1,0 +1,22 @@
+version: "3"
+services:
+
+  dev:
+    build:
+      context: ..
+      dockerfile: stack/dev/Dockerfile
+    volumes:
+      - ../hello:/hello
+    ports:
+      - "80:3000"
+    env_file: environment.env
+    hostname: dev
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres
+    hostname: postgres
+    ports:
+      - "54320:5432"
+    command: postgres -c 'log_statement=all'
